@@ -1,6 +1,6 @@
 /* Zorgt dat het formulier ook opent zonder internet.
    Pas je iets aan in index.html? Verhoog dan het versienummer hieronder. */
-const VERSIE = 'energiemarkt-v2';
+const VERSIE = 'energiemarkt-v3';
 const BESTANDEN = [
   './', './index.html', './manifest.webmanifest', './fonts/asap.woff',
   './icons/logo.svg', './icons/logo-wit.svg', './icons/flowline.svg',
