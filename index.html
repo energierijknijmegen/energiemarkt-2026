@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aanmelden nieuwsbrief | Energierijk Nijmegen</title>
+<meta name="theme-color" content="#005975">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Energiemarkt">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<script>
+/* ═══════════════════════════════════════════════════════════
+   INSTELLINGEN – pas hier aan
+   ═══════════════════════════════════════════════════════════ */
+const CONFIG = {
+  // Het /exec-adres van je Google Apps Script (zie HANDLEIDING.html, stap 2)
+  ENDPOINT_URL: 'PLAK-HIER-JE-WEB-APP-URL',
+  // Moet precies gelijk zijn aan SLEUTEL in Code.gs
+  SLEUTEL: 'VERANDER-MIJ-energiemarkt-2026',
+  // Waarde van de prijzen, zoals die in het formulier en de voorwaarden staan
+  PRIJS_1_WAARDE: '€400,-',   // energielabel door Lette Advies
+  PRIJS_2_WAARDE: '€400,-',   // blowerdoortest door De Luchtdichters
+  ACTIEMAAND: 'november 2026', // de maand waarvan we de energierekening betalen
+  // Komt in de kolom "Bron" in de sheet
+  BRON: 'Energiemarkt 2026',
+  // Na hoeveel seconden het bedankscherm terug gaat naar een leeg formulier
+  BEDANKT_SECONDEN: 8,
+  // Na hoeveel seconden zonder aanraken een half ingevuld formulier wordt gewist
+  INACTIEF_SECONDEN: 120
+};
+</script>
+<style>
+@font-face{font-family:"Asap";src:url("fonts/asap.woff") format("woff");font-weight:100 900;font-stretch:75% 100%;font-display:swap}
+:root{
+  --petrol:#005975;--petrol-800:#003a4c;--petrol-600:#00475e;--petrol-100:#d9e6ea;--petrol-50:#ebf2f4;
+  --magenta:#e20675;--magenta-donker:#b8005c;--blauw:#1c98ce;--groen:#7bb312;--wit:#fff;
+  --verloop:linear-gradient(90deg,#e20675 0%,#1c98ce 50%,#7bb312 100%);
+  --radius:18px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:"Asap",system-ui,sans-serif;font-weight:500;color:var(--petrol-800);background:var(--petrol-50);font-size:18px;line-height:1.5;min-height:100vh;overflow-x:hidden}
+body::before{content:"";position:fixed;left:-6vw;bottom:-4vh;width:90vw;max-width:1100px;aspect-ratio:283/108;background:url("icons/beeldmerk-wit.svg") no-repeat center/contain;pointer-events:none;z-index:0}
+.balk{height:8px;background:var(--verloop);position:relative;z-index:1}
+.pagina{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:24px 24px calc(48px + env(safe-area-inset-bottom))}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 0 24px}
+header .logo{height:92px;width:auto;display:block}
+
+/* Status (voor de organisatie) */
+.status{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--petrol);background:var(--wit);border:0;border-radius:999px;padding:8px 14px;box-shadow:0 1px 3px rgba(0,58,76,.08);font-family:inherit;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:default}
+.status .stip{width:10px;height:10px;border-radius:50%;background:var(--groen);flex:none}
+.status[data-staat="wacht"] .stip{background:#f0a500}
+.status[data-staat="bezig"] .stip{background:var(--blauw);animation:puls 1s infinite}
+.status[data-staat="demo"] .stip{background:var(--magenta)}
+@keyframes puls{50%{opacity:.3}}
+
+/* Hero met prijs */
+.hero{position:relative;overflow:hidden;background:var(--petrol);color:var(--wit);border-radius:var(--radius);padding:40px 40px 92px;margin-bottom:24px}
+.hero::after{content:"";position:absolute;right:-60px;top:-30px;width:420px;aspect-ratio:283/108;background:url("icons/beeldmerk-wit-transparant.svg") no-repeat center/contain;pointer-events:none}
+.hero .label{display:inline-block;background:var(--magenta);color:var(--wit);font-weight:700;font-size:15px;border-radius:999px;padding:4px 14px;margin-bottom:16px;position:relative;z-index:1}
+.hero h1{font-weight:700;font-size:clamp(30px,4.2vw,42px);line-height:1.12;margin:0 0 20px;max-width:16em;position:relative;z-index:1;text-wrap:balance}
+.prijzen{position:relative;z-index:1;list-style:none;margin:0;padding:0;display:grid;gap:10px;max-width:640px}
+.prijzen li{display:flex;gap:16px;align-items:center;background:rgba(255,255,255,.1);border-radius:14px;padding:14px 18px}
+.prijzen .nr{flex:none;width:38px;height:38px;border-radius:50%;background:var(--wit);color:var(--petrol);font-weight:700;font-size:19px;display:grid;place-items:center}
+.prijzen strong{display:block;font-size:19px;font-weight:700;line-height:1.3}
+.prijzen span{font-size:16.5px;opacity:.92}
+.prijzen .nr,.prijzen span span{opacity:1}
+.prijzen li{align-items:flex-start}
+.prijzen .nr{margin-top:2px}
+.prijzen p{margin:6px 0 0;font-size:16px;line-height:1.45;opacity:.92}
+.meerPrijzen{position:relative;z-index:1;display:inline-flex;align-items:center;gap:8px;margin-top:14px;font:inherit;font-weight:700;font-size:17px;color:var(--wit);background:none;border:2px solid rgba(255,255,255,.7);border-radius:999px;padding:10px 20px;cursor:pointer}
+.meerPrijzen svg{width:20px;height:20px}
+.prijsDialog{max-width:720px;max-height:88vh;overflow-y:auto;overscroll-behavior:contain}
+.prijsDialog section{display:flex;gap:18px;align-items:flex-start;padding:16px 0;border-top:1px solid var(--petrol-100)}
+.prijsDialog section:first-of-type{border-top:0}
+.prijsDialog .nr{flex:none;width:38px;height:38px;border-radius:50%;background:var(--petrol);color:var(--wit);font-weight:700;display:grid;place-items:center}
+.prijsDialog section h4{margin:6px 0 2px;color:var(--petrol);font-size:19px}
+.prijsDialog .wie{display:block;font-size:15px;color:#5b7f8c;margin-bottom:6px}
+.prijsDialog p{font-size:16.5px;margin:0 0 8px}
+.prijsDialog .rij{position:sticky;bottom:-28px;background:var(--wit);padding:14px 0 4px;margin-bottom:-4px}
+.hero .flow{position:absolute;left:-2%;right:-2%;bottom:18px;width:104%;height:auto;opacity:.95}
+
+/* Kaarten */
+.kaart{background:var(--wit);border-radius:var(--radius);padding:32px 36px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,58,76,.06)}
+.kaart h2{font-weight:700;font-size:26px;line-height:1.2;color:var(--petrol);margin:0 0 6px}
+.kaart .intro{margin:0 0 22px;color:var(--petrol-800)}
+.velden{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.velden .vol{grid-column:1/-1}
+@media (max-width:640px){.velden{grid-template-columns:1fr}.kaart{padding:26px 22px}.hero{padding:30px 24px 80px}header .logo{height:72px}}
+
+label.veld{display:block}
+.veld .naam{display:block;font-weight:700;color:var(--petrol);margin-bottom:8px;font-size:17px}
+.veld .naam em{font-style:normal;font-weight:500;color:#5b7f8c;font-size:15px}
+input[type=text],input[type=email],input[type=tel]{width:100%;font:inherit;font-size:20px;color:var(--petrol-800);background:var(--wit);border:2px solid var(--petrol-100);border-radius:12px;padding:14px 16px;min-height:58px;appearance:none;-webkit-appearance:none;transition:border-color .15s}
+input:focus{outline:none;border-color:var(--petrol);box-shadow:0 0 0 4px rgba(28,152,206,.18)}
+.fout input{border-color:var(--magenta-donker)}
+.foutmelding{display:none;color:var(--magenta-donker);font-size:15px;font-weight:600;margin-top:6px}
+.fout .foutmelding{display:block}
+
+.uitleg{display:flex;gap:12px;align-items:flex-start;background:var(--petrol-50);border-radius:12px;padding:14px 16px;margin-top:12px;font-size:15.5px;line-height:1.45;color:var(--petrol-800)}
+.uitleg svg{flex:none;width:22px;height:22px;margin-top:1px;color:var(--petrol)}
+
+/* Keuzetegels */
+.tegels{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.tegel{position:relative;display:flex;align-items:center;gap:14px;min-height:64px;padding:14px 16px;border:2px solid var(--petrol-100);border-radius:14px;background:var(--wit);cursor:pointer;font-weight:600;color:var(--petrol-800);line-height:1.3;transition:border-color .15s,background .15s}
+.tegel input{position:absolute;opacity:0;pointer-events:none}
+.tegel .vink{flex:none;width:28px;height:28px;border:2px solid #9fbcc6;border-radius:50%;display:grid;place-items:center;transition:all .15s}
+.tegel.vierkant .vink{border-radius:8px}
+.tegel .vink svg{width:16px;height:16px;opacity:0;color:var(--wit)}
+.tegel:has(input:checked){border-color:var(--petrol);background:var(--petrol-50)}
+.tegel:has(input:checked) .vink{background:var(--petrol);border-color:var(--petrol)}
+.tegel:has(input:checked) .vink svg{opacity:1}
+.tegel:has(input:focus-visible){box-shadow:0 0 0 4px rgba(28,152,206,.25)}
+.tegel small{display:block;font-weight:500;color:#5b7f8c;font-size:14.5px}
+.tegel.groot{min-height:76px;font-size:20px}
+.fout .tegel{border-color:#f1b3cf}
+
+.uitklap{display:none;margin-top:18px}
+.uitklap.open{display:block;animation:in .25s ease}
+@keyframes in{from{opacity:0;transform:translateY(-6px)}}
+
+/* Versturen */
+.verzend{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px;padding:8px 4px 0}
+.verzend p{margin:0;font-size:15.5px;max-width:30em;color:var(--petrol-800)}
+.knop{display:inline-flex;align-items:center;gap:12px;font:inherit;font-weight:700;font-size:22px;color:var(--wit);background:var(--magenta);border:0;border-radius:999px;padding:18px 34px;min-height:64px;cursor:pointer;box-shadow:0 4px 14px rgba(226,6,117,.25);transition:transform .1s,background .15s}
+.knop:active{transform:scale(.97);background:var(--magenta-donker)}
+.knop svg{width:24px;height:24px}
+
+/* Bedankt-scherm */
+.bedankt{position:fixed;inset:0;z-index:50;background:var(--petrol);color:var(--wit);display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 32px;overflow:hidden}
+.bedankt.open{display:flex;animation:in .3s ease}
+.bedankt::before{content:"";position:absolute;inset:0 0 auto 0;height:8px;background:var(--verloop)}
+.bedankt img.logo{height:120px;margin-bottom:36px}
+.bedankt h2{font-size:clamp(36px,6vw,56px);font-weight:700;line-height:1.1;margin:0 0 16px}
+.bedankt p{font-size:22px;max-width:28em;margin:0 0 36px;opacity:.95}
+.bedankt .flow{position:absolute;left:-2%;bottom:60px;width:104%;opacity:.9}
+.bedankt .knop{background:var(--wit);color:var(--petrol);box-shadow:none}
+.bedankt .aftellen{margin-top:20px;font-size:16px;opacity:.75}
+
+/* Beheer-paneel (lang indrukken op de status) */
+dialog{border:0;border-radius:var(--radius);padding:28px 30px;max-width:460px;width:calc(100% - 40px);color:var(--petrol-800);font-family:inherit}
+dialog::backdrop{background:rgba(0,58,76,.55)}
+dialog h3{margin:0 0 10px;color:var(--petrol);font-size:22px}
+dialog p{margin:0 0 14px;font-size:16px}
+dialog .rij{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+dialog button{font:inherit;font-weight:700;font-size:16px;border-radius:999px;padding:12px 20px;border:2px solid var(--petrol);background:var(--wit);color:var(--petrol);cursor:pointer}
+dialog button.primair{background:var(--petrol);color:var(--wit)}
+.voorwaardenVeld{margin-top:16px}
+.tekstlink{font:inherit;font-weight:700;color:var(--petrol);background:none;border:0;padding:0;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.voorwaardenDialog{max-width:680px;max-height:88vh;overflow-y:auto;overscroll-behavior:contain}
+.voorwaardenDialog .vwIntro{font-size:17px;margin:0 0 6px}
+.voorwaardenDialog h4{color:var(--petrol);font-size:18px;margin:18px 0 4px}
+.voorwaardenDialog .rij{position:sticky;bottom:-28px;background:var(--wit);padding:14px 0 4px;margin-bottom:-4px}
+.voorwaardenDialog ol{margin:6px 0 0;padding-left:22px;font-size:17px;line-height:1.55}
+.voorwaardenDialog li{margin-bottom:10px}
+.voorwaardenDialog ul{padding-left:18px;margin:8px 0 0}
+.voorwaardenDialog ul li{margin-bottom:6px}
+.voorwaardenDialog .rij button{font-size:18px;padding:14px 26px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="balk"></div>
+<div class="pagina">
+  <header>
+    <img class="logo" src="icons/logo.svg" alt="Energierijk Nijmegen">
+    <button type="button" class="status" id="status" data-staat="ok" aria-live="polite"><span class="stip"></span><span id="statusTekst">Klaar</span></button>
+  </header>
+
+  <section class="hero">
+    <span class="label">Winactie Energiemarkt</span>
+    <h1>Meld je aan voor onze nieuwsbrief en maak kans op een van onze drie prijzen</h1>
+    <ol class="prijzen">
+      <li><span class="nr">1</span><div><strong>Een officieel energielabel voor je woning</strong><span>door Lette Advies · t.w.v. <span class="prijs1">€400,-</span></span><p>Laurette komt bij je langs voor een uitgebreide opname. Je krijgt een energielabel dat 10 jaar geldig is, met een overzicht van bespaaropties.</p></div></li>
+      <li><span class="nr">2</span><div><strong>Een blowerdoortest van je woning</strong><span>door De Luchtdichters · t.w.v. <span class="prijs2">€400,-</span></span><p>Met een grote ventilator meten ze hoe luchtdicht je woning is. Zo zie je waar warmte ongemerkt weglekt.</p></div></li>
+      <li><span class="nr">3</span><div><strong>Wij betalen een maand je energierekening!</strong><span>de maand <span class="actiemaand">november 2026</span></span></div></li>
+    </ol>
+    <button type="button" class="meerPrijzen" id="toonPrijzen">Meer over de prijzen
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    <img class="flow" src="icons/flowline.svg" alt="">
+  </section>
+
+  <form id="formulier" novalidate autocomplete="off">
+    <section class="kaart">
+      <h2>Je gegevens</h2>
+      <p class="intro">Vul je naam en e-mailadres in, dan ontvang je onze nieuwsbrief.</p>
+      <div class="velden">
+        <label class="veld" data-veld="voornaam">
+          <span class="naam">Voornaam</span>
+          <input type="text" name="voornaam" autocomplete="off" autocapitalize="words" enterkeyhint="next">
+          <span class="foutmelding">Vul je voornaam in.</span>
+        </label>
+        <label class="veld" data-veld="achternaam">
+          <span class="naam">Achternaam</span>
+          <input type="text" name="achternaam" autocomplete="off" autocapitalize="words" enterkeyhint="next">
+          <span class="foutmelding">Vul je achternaam in.</span>
+        </label>
+        <div class="vol">
+          <label class="veld" data-veld="email">
+            <span class="naam">E-mailadres</span>
+            <input type="email" name="email" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
+            <span class="foutmelding">Vul een geldig e-mailadres in.</span>
+          </label>
+          <div class="uitleg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+            <span>We bewaren je e-mailadres om je onze nieuwsbrief te sturen. Afmelden kan op elk moment, via de link onderaan elke nieuwsbrief.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="kaart">
+      <h2>Doe mee met de winactie</h2>
+      <p class="intro">Maak kans op een van onze drie prijzen. We stemmen de prijs af op jouw woonsituatie, zodat je er ook echt iets aan hebt.</p>
+      <label class="tegel vierkant groot">
+        <input type="checkbox" name="winactie" id="winactie">
+        <span class="vink"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg></span>
+        <span>Ja, ik doe mee met de winactie</span>
+      </label>
+      <div class="uitklap" id="telefoonBlok">
+        <label class="veld" data-veld="telefoon">
+          <span class="naam">Telefoonnummer</span>
+          <input type="tel" name="telefoon" inputmode="tel" autocomplete="off" enterkeyhint="done">
+          <span class="foutmelding">Vul je telefoonnummer in, zodat we je kunnen bellen als je wint.</span>
+        </label>
+        <div class="uitleg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/></svg>
+          <span>We gebruiken je telefoonnummer <strong>alleen</strong> om contact op te nemen als je de winactie wint. Daarna verwijderen we alle telefoonnummers. We bewaren ze niet.</span></div>
+        <div data-veld="voorwaarden" class="voorwaardenVeld">
+          <label class="tegel vierkant">
+            <input type="checkbox" name="voorwaarden" id="voorwaarden">
+            <span class="vink"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg></span>
+            <span>Ik ga akkoord met de <button type="button" class="tekstlink" id="toonVoorwaarden">actievoorwaarden</button></span>
+          </label>
+          <span class="foutmelding">Ga akkoord met de actievoorwaarden om mee te doen.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="kaart" data-veld="woonsituatie">
+      <h2>Hoe woon je?</h2>
+      <p class="intro">Kies wat het best bij jouw situatie past.</p>
+      <div class="tegels">
+        <label class="tegel"><input type="radio" name="woonsituatie" value="Koopwoning"><span class="vink"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg></span><span>Koopwoning</span></label>
+        <label class="tegel"><input type="radio" name="woonsituatie" value="Koopappartement"><span class="vink"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg></span><span>Koopappartement</span></label>
+        <label class="tegel"><input type="radio" name="woonsituatie" value="Huurwoning – woningcorporatie"><span class="vink"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg></span><span>Huurwoning<small>van een woningcorporatie</small></span></label>
+        <label class="tegel"><input type="radio" name="woonsituatie" value="Huurwoning – particuliere verhuurder"><span class="vink"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg></span><span>Huurwoning<small>van een particuliere verhuurder</small></span></label>
+        <label class="tegel"><input type="radio" name="woonsituatie" value="Huurappartement – woningcorporatie"><span class="vink"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg></span><span>Huurappartement<small>van een woningcorporatie</small></span></label>
+        <label class="tegel"><input type="radio" name="woonsituatie" value="Huurappartement – particuliere verhuurder"><span class="vink"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg></span><span>Huurappartement<small>van een particuliere verhuurder</small></span></label>
+        <label class="tegel"><input type="radio" name="woonsituatie" value="Studentenkamer of kamer"><span class="vink"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg></span><span>Studentenkamer of kamer</span></label>
+        <label class="tegel"><input type="radio" name="woonsituatie" value="Woonboot, tiny house of woonwagen"><span class="vink"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg></span><span>Woonboot, tiny house of woonwagen</span></label>
+        <label class="tegel"><input type="radio" name="woonsituatie" value="Anders" id="woonAnders"><span class="vink"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg></span><span>Anders<small>bijvoorbeeld inwonend</small></span></label>
+      </div>
+      <div class="uitklap" id="andersBlok">
+        <label class="veld">
+          <span class="naam">Anders, namelijk <em>(optioneel)</em></span>
+          <input type="text" name="woonAndersTekst" autocomplete="off" maxlength="120">
+        </label>
+      </div>
+      <div class="uitleg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+        <span>We gebruiken dit om de winactie af te stemmen, zodat je als winnaar ook echt iets hebt aan het onderzoek in jouw woning. In de toekomst willen we deze informatie ook gebruiken om je nieuwsbrieven te sturen die zo goed mogelijk aansluiten bij jouw situatie.</span></div>
+    </section>
+
+    <div class="verzend">
+      <p>Door je aan te melden ontvang je de nieuwsbrief van Energierijk Nijmegen. We gaan zorgvuldig om met je gegevens en delen ze niet met anderen. Lees meer in onze privacyverklaring op <strong>energierijknijmegen.nl/privacyverklaring</strong>.</p>
+      <button type="submit" class="knop" id="verstuur">Aanmelden
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    </div>
+  </form>
+</div>
+
+<div class="bedankt" id="bedankt" role="dialog" aria-modal="true" aria-labelledby="bedanktTitel">
+  <img class="logo" src="icons/logo-wit.svg" alt="Energierijk Nijmegen">
+  <h2 id="bedanktTitel">Bedankt!</h2>
+  <p id="bedanktTekst">Je bent aangemeld voor onze nieuwsbrief.</p>
+  <button type="button" class="knop" id="volgende">Volgende aanmelding</button>
+  <div class="aftellen" id="aftellen"></div>
+  <img class="flow" src="icons/flowline.svg" alt="">
+</div>
+
+<dialog id="prijsDialog" class="prijsDialog voorwaardenDialog" aria-labelledby="prijsTitel">
+  <h3 id="prijsTitel">De prijzen</h3>
+  <section>
+    <span class="nr">1</span>
+    <div>
+      <h4>Energielabel door Lette Advies</h4>
+      <span class="wie">ter waarde van <span class="prijs1">€400,-</span></span>
+      <p>Het energielabel laat zien hoe energiezuinig je woning is. De labelklasse loopt van A+++ (zeer energiezuinig) tot G (nog veel besparingsmogelijkheden).</p>
+      <p>Laurette komt bij je langs voor een uitgebreide opname. Daarna voert ze alle gegevens in een berekeningsmethode in, zoals het aantal m² gevel met de isolatiewaarden en je installaties. Daaruit komt een officieel energielabel, met een overzicht van bespaaropties. Een energielabel is 10 jaar geldig.</p>
+    </div>
+  </section>
+  <section>
+    <span class="nr">2</span>
+    <div>
+      <h4>Blowerdoortest door De Luchtdichters</h4>
+      <span class="wie">ter waarde van <span class="prijs2">€400,-</span></span>
+      <p>Met een blowerdoortest wordt de luchtdichtheid van je woning gemeten. Met een grote ventilator wordt lucht in de woning geblazen of eruit gezogen.</p>
+      <p>Hoe luchtdichter je woning is, hoe minder ongecontroleerde ventilatie er is. Ongecontroleerde ventilatie zorgt voor onnodig warmteverlies. De luchtstromen kunnen ook zichtbaar worden gemaakt met een warmtebeeldcamera en/of een rookmachine.</p>
+    </div>
+  </section>
+  <section>
+    <span class="nr">3</span>
+    <div>
+      <h4>We betalen een maand je energierekening!</h4>
+      <span class="wie">de maand <span class="actiemaand">november 2026</span></span>
+      <p>We vergoeden het vaste maandbedrag dat je in <span class="actiemaand">november 2026</span> aan je energieleverancier betaalt. Je laat ons dat bedrag zien, bijvoorbeeld met een schermafbeelding uit de app van je energieleverancier, en wij maken het naar je over.</p>
+    </div>
+  </section>
+  <div class="rij">
+    <button type="button" class="primair" id="sluitPrijzen">Sluiten</button>
+  </div>
+</dialog>
+
+<dialog id="voorwaardenDialog" class="voorwaardenDialog" aria-labelledby="voorwaardenTitel">
+  <h3 id="voorwaardenTitel">Actievoorwaarden winactie</h3>
+  <p class="vwIntro">Deze winactie wordt georganiseerd door Energierijk Nijmegen. Meedoen is gratis.</p>
+  <h4>Wie kan meedoen?</h4>
+  <ol>
+    <li>De winactie is bedoeld voor particulieren. Bedrijven kunnen niet meedoen.</li>
+    <li>De winactie is bedoeld voor inwoners van het Rijk van Nijmegen: de gemeenten Nijmegen, Berg en Dal, Beuningen, Heumen, Wijchen, Druten en Mook en Middelaar. Woon je buiten het Rijk van Nijmegen, dan kun je helaas niet meedoen.</li>
+    <li>Je moet 18 jaar of ouder zijn om mee te doen.</li>
+    <li>Je kunt één keer meedoen. Aanmelden met meerdere e-mailadressen is niet toegestaan. Meerdere aanmeldingen van dezelfde persoon tellen als één aanmelding.</li>
+  </ol>
+  <h4>De prijzen</h4>
+  <ol start="5">
+    <li>We verloten drie prijzen:
+      <ul>
+        <li><strong>Prijs 1:</strong> een officieel energielabel voor je woning door Lette Advies, ter waarde van <span class="prijs1">€400,-</span>.</li>
+        <li><strong>Prijs 2:</strong> een blowerdoortest van je woning door De Luchtdichters, ter waarde van <span class="prijs2">€400,-</span>.</li>
+        <li><strong>Prijs 3:</strong> wij betalen een maand je energierekening: de maand <span class="actiemaand">november 2026</span>.</li>
+      </ul>
+    </li>
+    <li>We stemmen prijs 1 en prijs 2 af op de woonsituatie van de winnaar, zodat die er ook echt iets aan heeft. Huur je bijvoorbeeld een appartement, dan heb je weinig aan een onderzoek van je woning: als huurder beslis je niet zelf over de woning. Afhankelijk van je woonsituatie dragen we dan in plaats daarvan bij aan je energierekening, met een bedrag dat gelijk is aan de waarde van de prijs. Je laat ons daarvoor zien dat je een energierekening betaalt, bijvoorbeeld met een schermafbeelding uit de app van je energieleverancier. Daarna maken we het bedrag naar je over.</li>
+    <li>Bij prijs 3 vergoeden we het bedrag dat je voor <span class="actiemaand">november 2026</span> aan je energieleverancier betaalt: je vaste maandbedrag (voorschot), of bij een dynamisch contract je maandrekening. Je stuurt ons daarvoor een bewijs, bijvoorbeeld een schermafbeelding uit de app van je energieleverancier of een bankafschrift. Daarop staan het bedrag en je naam. We maken het bedrag daarna naar je over. Een latere jaarafrekening, waarbij je bijbetaalt of geld terugkrijgt, valt hier buiten.</li>
+    <li>Heb je geen eigen energiecontract, bijvoorbeeld omdat je energie via je huur of servicekosten betaalt? Dan vragen we om een bewijs van wat je daarvoor per maand betaalt. Kun je dat niet laten zien, dan spreken we samen een passende vergoeding af.</li>
+    <li>Je kunt maximaal één prijs winnen. De prijzen zijn persoonlijk en niet overdraagbaar aan iemand anders.</li>
+    <li>Kunnen we een prijs door overmacht niet leveren, dan mogen we een gelijkwaardige prijs geven.</li>
+  </ol>
+  <h4>Trekking en bekendmaking</h4>
+  <ol start="11">
+    <li>We trekken de winnaars één week na de Energiemarkt, door loting uit alle deelnemers. De eerste getrokken winnaar wint prijs 1, de tweede prijs 2 en de derde prijs 3.</li>
+    <li>We nemen per e-mail en telefoon contact op met de winnaars. Kunnen we een winnaar niet binnen 7 dagen bereiken, dan trekken we voor die prijs een nieuwe winnaar.</li>
+    <li>We maken de trekking en de winactie bekend op onze website en sociale media. We noemen de naam van een winnaar alleen als die daar zelf toestemming voor geeft. Dat is geen voorwaarde om de prijs te krijgen: wil je liever niet genoemd worden, dan is dat helemaal oké.</li>
+  </ol>
+  <h4>Privacy</h4>
+  <ol start="14">
+    <li>We gaan zorgvuldig om met je gegevens. Je telefoonnummer gebruiken we alleen om contact op te nemen als je wint. Na de winactie verwijderen we alle telefoonnummers. Het bewijs van je energierekening en je rekeningnummer verwijderen we zodra we het bedrag hebben overgemaakt. Lees meer in onze privacyverklaring op <strong>energierijknijmegen.nl/privacyverklaring</strong>.</li>
+  </ol>
+  <h4>Vragen en klachten</h4>
+  <ol start="15">
+    <li>Heb je een vraag of klacht over de winactie? Stuur een e-mail naar <strong>info@energierijknijmegen.nl</strong>.</li>
+  </ol>
+  <div class="rij">
+    <button type="button" class="primair" id="akkoordVoorwaarden">Akkoord</button>
+    <button type="button" id="sluitVoorwaarden">Sluiten</button>
+  </div>
+</dialog>
+
+<dialog id="beheer">
+  <h3>Beheer</h3>
+  <p id="beheerTekst"></p>
+  <div class="rij">
+    <button type="button" class="primair" id="nuVersturen">Nu versturen</button>
+    <button type="button" id="downloadCsv">Wachtrij downloaden (CSV)</button>
+    <button type="button" id="sluitBeheer">Sluiten</button>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const form = $('#formulier');
+  const DEMO = !/^https:\/\/script\.google(usercontent)?\.com\//.test(CONFIG.ENDPOINT_URL);
+  const SLEUTEL_OPSLAG = 'en-energiemarkt-wachtrij';
+
+  const vul = (cls, waarde) => document.querySelectorAll(cls).forEach(el => el.textContent = waarde);
+  vul('.prijs1', CONFIG.PRIJS_1_WAARDE);
+  vul('.prijs2', CONFIG.PRIJS_2_WAARDE);
+  vul('.actiemaand', CONFIG.ACTIEMAAND);
+
+  /* ── Wachtrij: aanmeldingen blijven op de tablet tot de Sheet ze bevestigt ── */
+  let geheugen = [];
+  let opslagWerkt = true;
+  function laad() {
+    try { return JSON.parse(localStorage.getItem(SLEUTEL_OPSLAG) || '[]'); }
+    catch (e) { opslagWerkt = false; return geheugen; }
+  }
+  function bewaar(q) {
+    try { localStorage.setItem(SLEUTEL_OPSLAG, JSON.stringify(q)); opslagWerkt = true; }
+    catch (e) { opslagWerkt = false; geheugen = q; }
+  }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+  let bezig = false, laatsteFout = null, laatsteSync = null;
+
+  async function verstuurWachtrij() {
+    if (bezig) return;
+    const q = laad();
+    // Demomodus (nog geen Sheet gekoppeld): niets versturen, alles blijft veilig in de wachtrij
+    if (!q.length || DEMO) { toonStatus(); return; }
+    bezig = true; toonStatus();
+    try {
+      const deel = q.slice(0, 40);
+      let antwoord;
+      {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 25000);
+        const res = await fetch(CONFIG.ENDPOINT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ sleutel: CONFIG.SLEUTEL, items: deel }),
+          signal: ctrl.signal
+        });
+        clearTimeout(t);
+        antwoord = await res.json();
+      }
+      if (antwoord.ok) {
+        const ok = new Set(antwoord.ontvangen || []);
+        bewaar(laad().filter(x => !ok.has(x.id)));
+        laatsteFout = null; laatsteSync = new Date();
+      } else {
+        laatsteFout = antwoord.fout || 'Onbekende fout';
+      }
+    } catch (e) {
+      laatsteFout = 'Geen verbinding';
+    } finally {
+      bezig = false;
+      toonStatus();
+      if (!laatsteFout && laad().length) setTimeout(verstuurWachtrij, 300);
+    }
+  }
+
+  function toonStatus() {
+    const n = laad().length;
+    const el = $('#status'), tekst = $('#statusTekst');
+    let staat = 'ok', t = 'Alles verzonden';
+    if (bezig) { staat = 'bezig'; t = 'Versturen…'; }
+    else if (n) { staat = 'wacht'; t = n + (n === 1 ? ' aanmelding wacht' : ' aanmeldingen wachten') + ' op verbinding'; }
+    if (DEMO && !bezig) { staat = 'demo'; t = 'Demomodus' + (n ? ' · ' + n + ' in wachtrij' : ''); }
+    if (!opslagWerkt) t += ' · let op: tijdelijke opslag';
+    el.dataset.staat = staat; tekst.textContent = t;
+    $('#beheerTekst').innerHTML =
+      '<strong>' + n + '</strong> aanmelding(en) op deze tablet nog niet in de Google Sheet.<br>' +
+      'Laatst verstuurd: ' + (laatsteSync ? laatsteSync.toLocaleTimeString('nl-NL') : '–') + '<br>' +
+      (laatsteFout ? 'Laatste melding: ' + laatsteFout + '<br>' : '') +
+      (DEMO ? '<br>Demomodus: er is nog geen Google Sheet gekoppeld.' : '');
+  }
+
+  setInterval(verstuurWachtrij, 15000);
+  window.addEventListener('online', verstuurWachtrij);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) verstuurWachtrij(); });
+
+  /* ── Formulier ── */
+  const winactie = $('#winactie');
+  winactie.addEventListener('change', () => {
+    $('#telefoonBlok').classList.toggle('open', winactie.checked);
+    if (!winactie.checked) { zetFout('telefoon', false); zetFout('voorwaarden', false); }
+  });
+  form.addEventListener('change', e => { if (e.target.id === 'voorwaarden') zetFout('voorwaarden', false); });
+
+  /* ── Actievoorwaarden ── */
+  const prijsDialog = $('#prijsDialog');
+  $('#toonPrijzen').addEventListener('click', () => prijsDialog.showModal());
+  $('#sluitPrijzen').addEventListener('click', () => prijsDialog.close());
+  const vwDialog = $('#voorwaardenDialog');
+  $('#toonVoorwaarden').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); vwDialog.showModal(); });
+  $('#sluitVoorwaarden').addEventListener('click', () => vwDialog.close());
+  $('#akkoordVoorwaarden').addEventListener('click', () => {
+    $('#voorwaarden').checked = true; zetFout('voorwaarden', false); vwDialog.close();
+  });
+  form.addEventListener('change', e => {
+    if (e.target.name === 'woonsituatie') $('#andersBlok').classList.toggle('open', $('#woonAnders').checked);
+  });
+  form.addEventListener('input', e => {
+    const v = e.target.closest('[data-veld]');
+    if (v) v.classList.remove('fout');
+  });
+
+  function zetFout(veld, aan) {
+    const el = form.querySelector('[data-veld="' + veld + '"]');
+    if (el) el.classList.toggle('fout', aan);
+    return aan;
+  }
+
+  function controleer(d) {
+    const fouten = [];
+    if (zetFout('voornaam', !d.voornaam)) fouten.push('voornaam');
+    if (zetFout('achternaam', !d.achternaam)) fouten.push('achternaam');
+    if (zetFout('email', !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email))) fouten.push('email');
+    const cijfers = d.telefoon.replace(/\D/g, '');
+    if (zetFout('telefoon', d.winactie && (cijfers.length < 10 || cijfers.length > 15))) fouten.push('telefoon');
+    if (zetFout('voorwaarden', d.winactie && !d.voorwaarden)) fouten.push('voorwaarden');
+    return fouten;
+  }
+
+  function nieuwId() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const f = new FormData(form);
+    const woon = f.get('woonsituatie') || '';
+    const anders = (f.get('woonAndersTekst') || '').trim();
+    const d = {
+      id: nieuwId(),
+      ingevuldOp: new Date().toISOString(),
+      voornaam: (f.get('voornaam') || '').trim(),
+      achternaam: (f.get('achternaam') || '').trim(),
+      email: (f.get('email') || '').trim().toLowerCase(),
+      winactie: winactie.checked,
+      telefoon: winactie.checked ? (f.get('telefoon') || '').trim() : '',
+      voorwaarden: winactie.checked && $('#voorwaarden').checked,
+      woonsituatie: woon === 'Anders' && anders ? 'Anders: ' + anders : woon,
+      bron: CONFIG.BRON
+    };
+    const fouten = controleer(d);
+    if (fouten.length) {
+      const eerste = form.querySelector('[data-veld="' + fouten[0] + '"]');
+      eerste.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => { const i = eerste.querySelector('input'); if (i) i.focus({ preventScroll: true }); }, 350);
+      return;
+    }
+    // Eerst lokaal opslaan, dan pas versturen: zo gaat er niets verloren als de wifi wegvalt
+    const q = laad(); q.push(d); bewaar(q);
+    toonBedankt(d);
+    verstuurWachtrij();
+  });
+
+  /* ── Bedankt-scherm en automatisch terug ── */
+  let afteller = null;
+  function toonBedankt(d) {
+    if (document.activeElement) document.activeElement.blur();
+    $('#bedanktTitel').textContent = 'Bedankt, ' + d.voornaam + '!';
+    $('#bedanktTekst').textContent = d.winactie
+      ? 'Je bent aangemeld voor onze nieuwsbrief en je doet mee met de winactie. Veel succes!'
+      : 'Je bent aangemeld voor onze nieuwsbrief.';
+    $('#bedankt').classList.add('open');
+    leegFormulier();
+    let s = CONFIG.BEDANKT_SECONDEN;
+    const tel = () => $('#aftellen').textContent = 'Het formulier staat over ' + s + ' seconde' + (s === 1 ? '' : 'n') + ' klaar voor de volgende bezoeker.';
+    tel();
+    clearInterval(afteller);
+    afteller = setInterval(() => { s--; if (s <= 0) sluitBedankt(); else tel(); }, 1000);
+  }
+  function sluitBedankt() {
+    clearInterval(afteller);
+    $('#bedankt').classList.remove('open');
+    window.scrollTo({ top: 0 });
+  }
+  $('#volgende').addEventListener('click', sluitBedankt);
+
+  function leegFormulier() {
+    if (vwDialog.open) vwDialog.close();
+    if (prijsDialog.open) prijsDialog.close();
+    form.reset();
+    form.querySelectorAll('.fout').forEach(el => el.classList.remove('fout'));
+    $('#telefoonBlok').classList.remove('open');
+    $('#andersBlok').classList.remove('open');
+  }
+
+  /* ── Half ingevuld en niet meer aangeraakt? Na een tijdje wissen (privacy) ── */
+  let laatsteAanraking = Date.now();
+  ['pointerdown', 'keydown', 'input'].forEach(ev => document.addEventListener(ev, () => laatsteAanraking = Date.now(), { passive: true }));
+  setInterval(() => {
+    const ingevuld = [...form.elements].some(el => (el.type === 'checkbox' || el.type === 'radio') ? el.checked : (el.value && el.tagName === 'INPUT'));
+    if (ingevuld && Date.now() - laatsteAanraking > CONFIG.INACTIEF_SECONDEN * 1000 && !$('#bedankt').classList.contains('open')) {
+      leegFormulier(); window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, 5000);
+
+  /* ── Beheer: houd de statusknop 1 seconde ingedrukt ── */
+  let drukTimer = null;
+  const status = $('#status');
+  status.addEventListener('pointerdown', () => { drukTimer = setTimeout(() => { toonStatus(); $('#beheer').showModal(); }, 1000); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => status.addEventListener(ev, () => clearTimeout(drukTimer)));
+  status.addEventListener('contextmenu', e => e.preventDefault());
+  $('#sluitBeheer').addEventListener('click', () => $('#beheer').close());
+  $('#nuVersturen').addEventListener('click', () => { laatsteFout = null; verstuurWachtrij(); });
+  $('#downloadCsv').addEventListener('click', () => {
+    const q = laad();
+    const kol = ['ingevuldOp', 'voornaam', 'achternaam', 'email', 'telefoon', 'winactie', 'voorwaarden', 'woonsituatie', 'bron', 'id'];
+    const cel = v => '"' + String(v == null ? '' : v === true ? 'Ja' : v === false ? 'Nee' : v).replace(/"/g, '""') + '"';
+    const csv = '﻿' + kol.join(';') + '\n' + q.map(r => kol.map(k => cel(r[k])).join(';')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'wachtrij-energiemarkt.csv';
+    a.click();
+  });
+
+  toonStatus();
+  verstuurWachtrij();
+
+  /* ── Offline beschikbaar maken (werkt op https, bv. GitHub Pages) ── */
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
