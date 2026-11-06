@@ -18,9 +18,9 @@
    ═══════════════════════════════════════════════════════════ */
 const CONFIG = {
   // Het /exec-adres van je Google Apps Script (zie HANDLEIDING.html, stap 2)
-  ENDPOINT_URL: 'PLAK-HIER-JE-WEB-APP-URL',
+  ENDPOINT_URL: 'https://script.google.com/macros/s/AKfycbwuS7eUEyk9RvhX-aHLkKXBnrsxsiJhGRkMH7nz6SMpZ__9YyT0lu6sbGZPn5a2XAKkyg/exec',
   // Moet precies gelijk zijn aan SLEUTEL in Code.gs
-  SLEUTEL: 'VERANDER-MIJ-energiemarkt-2026',
+  SLEUTEL: 'en-markt-7Hq29xLp',
   // Waarde van de prijzen, zoals die in het formulier en de voorwaarden staan
   PRIJS_1_WAARDE: '€400,-',   // energielabel door Lette Advies
   PRIJS_2_WAARDE: '€400,-',   // blowerdoortest door De Luchtdichters
@@ -28,9 +28,7 @@ const CONFIG = {
   // Komt in de kolom "Bron" in de sheet
   BRON: 'Energiemarkt 2026',
   // Na hoeveel seconden het bedankscherm terug gaat naar een leeg formulier
-  BEDANKT_SECONDEN: 8,
-  // Na hoeveel seconden zonder aanraken een half ingevuld formulier wordt gewist
-  INACTIEF_SECONDEN: 120
+  BEDANKT_SECONDEN: 16,
 };
 </script>
 <style>
@@ -560,16 +558,6 @@ dialog button.primair{background:var(--petrol);color:var(--wit)}
     $('#telefoonBlok').classList.remove('open');
     $('#andersBlok').classList.remove('open');
   }
-
-  /* ── Half ingevuld en niet meer aangeraakt? Na een tijdje wissen (privacy) ── */
-  let laatsteAanraking = Date.now();
-  ['pointerdown', 'keydown', 'input'].forEach(ev => document.addEventListener(ev, () => laatsteAanraking = Date.now(), { passive: true }));
-  setInterval(() => {
-    const ingevuld = [...form.elements].some(el => (el.type === 'checkbox' || el.type === 'radio') ? el.checked : (el.value && el.tagName === 'INPUT'));
-    if (ingevuld && Date.now() - laatsteAanraking > CONFIG.INACTIEF_SECONDEN * 1000 && !$('#bedankt').classList.contains('open')) {
-      leegFormulier(); window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, 5000);
 
   /* ── Beheer: houd de statusknop 1 seconde ingedrukt ── */
   let drukTimer = null;
